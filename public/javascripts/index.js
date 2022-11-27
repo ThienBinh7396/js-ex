@@ -4,12 +4,11 @@ void (async function () {
   const data = await window.FAKE_DATA.get();
   let nameArray = data.map((e) => e.name); // get name array from data
 
-  const editButtonValue =
-    "<button class='button editButton'>" + "Edit" + "</button>";
+  const editButtonValue = "<button class='button editButton'>Edit</button>";
   const changeButtonValue =
-    "<button class='button changeButton'>" + "Change" + "</button>";
+    "<button class='button changeButton'>Change</button>";
   const cancelButtonValue =
-    "<button class='button cancelButton'>" + "Cancel" + "</button>";
+    "<button class='button cancelButton'>Cancel</button>";
 
   function capitalizeFirstLetter(string) {
     return string
@@ -19,32 +18,28 @@ void (async function () {
       .join(" ");
   }
 
-  function checkValidatedName(string) {
-    let checkText = string.split(" ");
-
-    // check length
-    if (checkText.length > 1) {
-      // check syntax
-      for (let e of checkText) {
-        if (/^[(a-zA-Z)]{2,}$/.test(e) === false) {
-          alert("Invalid username!");
-          return false;
-        }
-      }
+  function validateName(string) {
+    if (/^([a-zA-Z]{2}[a-zA-Z]*?\s)+([a-zA-Z]{2,})$/.test(string)) {
+      return true;
     } else {
       alert("Invalid username!");
       return false;
     }
+  }
 
-    // check existence
-    for (let e of nameArray) {
-      if (e.toLowerCase() === string.toLowerCase()) {
-        alert("Username already exists");
-        return false;
-      }
+  function chooseElement(e) {
+    if (!$(e.target).is(":button")) {
+      $("#input").val($(this).children(".dropdownParagraph").text());
+      $(".dropdownRow").not($(this)).remove();
     }
+  }
 
-    return true;
+  function filter() {
+    let result = nameArray.filter((e) =>
+      e.toLowerCase().includes($("#input").val().toLowerCase())
+    );
+
+    return result.sort();
   }
 
   function editButtonEvent() {
@@ -52,6 +47,7 @@ void (async function () {
 
     buttonHolder.off("click", ".changeButton"); // remove old event on changeButton
     buttonHolder.off("click", ".cancelButton"); // remove old event on cancelButton
+    $(".dropdownRow").off("click");
 
     buttonHolder.empty(); // remove edit button
     buttonHolder.append(changeButtonValue + cancelButtonValue); // add change, cancel button
@@ -65,21 +61,21 @@ void (async function () {
 
     buttonHolder.on("click", ".changeButton", function () {
       let newText = dropdownInput.val(); // get new text
-      let isValidated = checkValidatedName(newText);
 
-      if (isValidated === true) {
+      if (validateName(newText)) {
         let newValue = capitalizeFirstLetter(newText);
         dropdownInput.replaceWith(
           `<p class="dropdownParagraph font1-1">${newValue}</p>`
         );
 
-        nameArray.splice(nameArray.indexOf(oldText), 1); // remove old name in array
-        nameArray.push(newValue); // insert new name into array
+        nameArray.splice(nameArray.indexOf(oldText), 1, newValue); // replace name in array
 
         buttonHolder.empty(); // delete change + cancel button
         buttonHolder.append(editButtonValue);
-        isValidated = false;
+
         dropdownInput.removeClass("error");
+
+        $(".dropdownRow").off("click").on("click", chooseElement);
       } else {
         dropdownInput.addClass("error");
       }
@@ -91,39 +87,48 @@ void (async function () {
       );
       buttonHolder.empty(); // delete change + cancel button
       buttonHolder.append(editButtonValue);
+
+      $(".dropdownRow").off("click").on("click", chooseElement);
     });
   }
 
   $(document).ready(function () {
+    $("body").on("click", function (e) {
+      if (
+        $(e.target).parentsUntil(".container").length < 2 &&
+        !$(e.target).is(":button")
+      ) {
+        $("#dropdownHolder").empty().addClass("noneDisplay");
+        $("#input").val("");
+      }
+    });
+
     $("#input").on("click", function () {
       $("#dropdownHolder").removeClass("noneDisplay");
 
-      nameArray.sort();
-
-      $("#dropdownHolder").append(
-        nameArray.map((e) => {
-          return `<div class="dropdownRow">
+      if ($("#dropdownHolder").children(".dropdownRow").length === 0) {
+        // execute if no dropdownRow is existing
+        $("#dropdownHolder").append(
+          filter().map((e) => {
+            return `<div class="dropdownRow">
                     <p class="dropdownParagraph font1-1">${e}</p>
                     <div class="buttonHolder">${editButtonValue}</div>
                   </div>`;
-        })
-      );
-
+          })
+        );
+      }
+      // $(".dropdownParagraph").on("click",chooseElement)
+      $(".dropdownRow").off("click").on("click", chooseElement);
       $(".buttonHolder").on("click", ".editButton", editButtonEvent);
     });
 
     $("#input").on("keyup", function () {
       // set event when input changes
-      nameArray.sort();
-
-      let result = nameArray.filter((e) =>
-        e.toLowerCase().includes($("#input").val().toLowerCase())
-      );
 
       $("#dropdownHolder")
         .empty() // remove old rows
         .append(
-          result.map((e) => {
+          filter().map((e) => {
             return `<div class="dropdownRow">
                     <p class="dropdownParagraph font1-1">${e}</p>
                       <div class="buttonHolder">
@@ -133,10 +138,10 @@ void (async function () {
           })
         );
       // if no name is found
-      if (result.length === 0) {
+      if (filter().length === 0) {
         $("#dropdownHolder").append(
           `
-            <div class="dropdownRow font1-1">
+            <div class="noDataRow font1-1">
               No data found
             </div>
             <div class="extensionRow font1-1">
@@ -155,13 +160,22 @@ void (async function () {
             .on("click", function () {
               // then add new event on second click
               let extensionText = $("#extensionInput").val();
-              let isValidated = checkValidatedName(extensionText);
 
-              if (isValidated) {
+              if (validateName(extensionText)) {
                 nameArray.push(capitalizeFirstLetter(extensionText)); // insert new name into array
                 // then back to beginning UI
-                $("#dropdownHolder").empty().addClass("noneDisplay");
-                $("#input").val("");
+                $("#dropdownHolder")
+                  .empty()
+                  .append(
+                    "<div class='dropdownRow'><p class='dropdownParagraph font1-1'>" +
+                      capitalizeFirstLetter(extensionText) +
+                      "</p ><div class='buttonHolder'>" +
+                      editButtonValue +
+                      "</div></div>"
+                  );
+
+                $(".dropdownRow").off("click").on("click", chooseElement);
+                $(".buttonHolder").on("click", ".editButton", editButtonEvent);
               } else {
                 $("#extensionInput").addClass("error");
               }
@@ -169,6 +183,7 @@ void (async function () {
         });
       }
 
+      $(".dropdownRow").off("click").on("click", chooseElement);
       $(".buttonHolder").on("click", ".editButton", editButtonEvent);
     });
   });
